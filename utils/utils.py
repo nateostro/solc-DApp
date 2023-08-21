@@ -255,39 +255,45 @@ def compileLeafNodes(inputDir, outputDir, debug=False):
     if debug: logging.info(colored('DApp compiled successfully.', 'green'))
 
 def compileDapp(inputDir, outputDir, debug=False):
-    if debug: logging.info(colored('Compiling DApp...', 'green'))
-    ## get all node (contract)
-    contractList = parseContractList(inputDir)
-    ## compile each contract
-    for contractPath, contractName in contractList.items():
-        print('hello')
-        targetPath = os.path.join(outputDir, contractName[:len(contractName) - 4] + ".json")
-        if os.path.exists(targetPath) and os.path.getsize(targetPath):
-            continue
-        version = parseVersion(contractPath)
-        if version == "unknown version":
-            logging.error("Unable to identify solidity version of", contractName)
-            continue
-        switchVersion(version)
-        basePath = os.path.join(os.path.dirname(inputDir), "node_modules")
-        if not os.path.exists(basePath):
-            os.mkdir(basePath)
-        _, _, importLibs = calculateImportLib(inputDir)
-        compileCommand = "solc --combined-json abi,bin,bin-runtime,srcmap,srcmap-runtime,ast "
-        for importLib in importLibs:
-            libs = importLib.split("/")
-            if libs[0] == ".":
+    try:
+        if debug: logging.info(colored('Compiling DApp...', 'green'))
+        ## get all node (contract)
+        contractList = parseContractList(inputDir)
+        ## compile each contract
+        for contractPath, contractName in contractList.items():
+            print('hello')
+            targetPath = os.path.join(outputDir, contractName[:len(contractName) - 4] + ".json")
+            if os.path.exists(targetPath) and os.path.getsize(targetPath):
                 continue
-            compileCommand = compileCommand + libs[0] + "=" + os.path.join(basePath, libs[0]) + " "
-        compileCommand = compileCommand \
-                    + contractPath + " > " \
-                    + targetPath \
-                    + " --allow-paths " \
-                    + os.path.dirname(inputDir)
-        
-        logging.info("Compiling this contract " + contractName + "... compileCommand: " + str(compileCommand))
-        os.system(compileCommand)
+            version = parseVersion(contractPath)
+            if version == "unknown version":
+                logging.error("Unable to identify solidity version of", contractName)
+                continue
+            switchVersion(version)
+            basePath = os.path.join(os.path.dirname(inputDir), "node_modules")
+            if not os.path.exists(basePath):
+                os.mkdir(basePath)
+            _, _, importLibs = calculateImportLib(inputDir)
+            compileCommand = "solc --combined-json abi,bin,bin-runtime,srcmap,srcmap-runtime,ast "
+            for importLib in importLibs:
+                libs = importLib.split("/")
+                if libs[0] == ".":
+                    continue
+                compileCommand = compileCommand + libs[0] + "=" + os.path.join(basePath, libs[0]) + " "
+            compileCommand = compileCommand \
+                        + contractPath + " > " \
+                        + targetPath \
+                        + " --allow-paths " \
+                        + os.path.dirname(inputDir)
+            
+            logging.info("Compiling this contract " + contractName + "... compileCommand: " + str(compileCommand))
+            os.system(compileCommand)
+    except Exception as e:
+        logging.error('Error compiling DApp.')
+        return False
+    
     logging.info('DApp compiled successfully.')
+    return True
 
 import subprocess
 
