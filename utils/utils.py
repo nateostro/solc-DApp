@@ -1,8 +1,14 @@
 import getopt
+import subprocess
+import sys
 import os, json, re
 from solidity_parser import parser
 from graphviz import Digraph
 import time
+import logging
+from termcolor import colored
+
+logging.basicConfig(level=logging.INFO)
 
 '''
 parse arguments from cmd input
@@ -12,14 +18,19 @@ def parseArg(argv):
     outputDir = "./output"
     contractName = ""
     graph = False
+    debug = False
     try:
         opts, args = getopt.getopt(argv, "hgi:o:n:", ["help", "graph", "inputDir=", "outputDir=", "contractName="])
     except getopt.GetoptError:
-        print("python3 main.py -i <inputDir> -o <outputDir> -n <contractName>")
+        logging.error('Error parsing arguments, got: ', str(argv))
+        logging.error("Usage is: python3 main.py -i <inputDir> -o <outputDir> -n <contractName>, -d to enable debug mode")
         sys.exit(2)
     for opt, arg in opts:
+        if opt in ("-d", "--debug"):
+            debug = True
         if opt in ("-h", "--help"):
-            print("python3 main.py -i <inputDir> -o <outputDir> -n <contractName>")
+            if debug: logging.info(colored('Help:', 'green'))
+            if debug: logging.info("python3 main.py -i <inputDir> -o <outputDir> -n <contractName>, -d to enable debug mode")
             sys.exit()
         elif opt in ("-g", "--graph"):
             graph = True
@@ -29,24 +40,26 @@ def parseArg(argv):
             outputDir = arg
         elif opt in ("-n", "--contractName"):
             contractName = arg
-    if inputDir == "" or (contractName == "" and graph == False):
-        print("python3 main.py -i <inputDir> -o <outputDir> -n <contractName>")
-        sys.exit(2)
-    elif not os.path.isdir(inputDir):
-        print(inputDir, "is not a input dir")
+    # if inputDir == "" or (contractName == "" and graph == False):
+    #     logging.error("python3 main.py -i <inputDir> -o <outputDir> -n <contractName>")
+    #     sys.exit(2)
+    if not os.path.isdir(inputDir):
+        logging.error(f"{inputDir} is not a input dir")
         sys.exit(2)
     elif not os.path.isdir(outputDir):
-        print(outputDir, "is not a output dir")
+        logging.error(f"{outputDir} is not a output dir")
         sys.exit(2)
     elif contractName != "" and not os.path.exists(os.path.join(inputDir, contractName + ".sol")):
-        print("contract", contractName, "do not exist")
+        logging.error(f"contract {contractName} does not exist")
         sys.exit(2)
-    return inputDir, outputDir, contractName, graph
+    if debug: logging.info(colored('Arguments parsed successfully.', 'green'))
+    return inputDir, outputDir, contractName, graph, debug
 
 '''
 parse solidity version by readline
 '''
-def parseVersionReadline(filePath):
+def parseVersionReadline(filePath, debug=False):
+    if debug: logging.info(colored('Parsing solidity version by readline...', 'green'))
     f = open(filePath)
     line = f.readline()
     while line:
@@ -54,34 +67,42 @@ def parseVersionReadline(filePath):
             return re.search('0\.[0-9\.]*', line).group(0)
         line = f.readline()
     f.close()
+    if debug: logging.info(colored('Solidity version parsed successfully.', 'green'))
     return "unknown version"
 
 '''
 parse solidity version from .sol file
 '''
-def parseVersion(filePath):
+def parseVersion(filePath, debug=False):
+    if debug: logging.info(colored('Parsing solidity version from .sol file...', 'green'))
     try:
         fileUnits = parser.parse_file(filePath, loc=False)
     except Exception as e:
+        logging.error('Error parsing solidity version from .sol file.')
         return parseVersionReadline(filePath)
     for item in fileUnits["children"]:
         if item["type"] == "PragmaDirective":
+            if debug: logging.info(colored('Solidity version parsed successfully.', 'green'))
             return item["value"]
+    if debug: logging.info(colored('Solidity version parsed successfully.', 'green'))
     return "unknown version"
 
 '''
 switch solc version by solc-select
 '''
-def switchVersion(version):
+def switchVersion(version, debug=False):
+    if debug: logging.info(colored('Switching solc version...', 'green'))
     cleanVersion = re.search('0\.[0-9\.]*', version).group(0)
-    # os.system("solc-select install " + cleanVersion)
+    check_and_install_solc_version(cleanVersion)
     os.system("solc-select use " + cleanVersion)
     time.sleep(5)
+    if debug: logging.info(colored('Solc version switched successfully.', 'green'))
 
 '''
 parse contract list with absolute path
 '''
-def parseContractList(inputDir):
+def parseContractList(inputDir, debug=False):
+    if debug: logging.info(colored('Parsing contract list with absolute path...', 'green'))
     result = dict()
     inputFiles = os.listdir(inputDir)
     for inputFile in inputFiles:
@@ -94,15 +115,18 @@ def parseContractList(inputDir):
             nestResult = parseContractList(targetPath)
             for key, value in nestResult.items():
                 result[key] = value
+    if debug: logging.info(colored('Contract list parsed successfully.', 'green'))
     return result
 
 '''
 parse import file list in relative path
 '''
-def parseImportList(filePath):
+def parseImportList(filePath, debug=False):
+    if debug: logging.info(colored('Parsing import file list in relative path...', 'green'))
     try:
         fileUnits = parser.parse_file(filePath, loc=False)
     except Exception as e:
+        logging.error('Error parsing import file list in relative path.')
         return []
     result = []
     try:
@@ -110,14 +134,16 @@ def parseImportList(filePath):
             if item["type"] == "ImportDirective":
                 result.append(item["path"])
     except Exception as e:
-        print(filePath)
+        logging.error(filePath)
         # print(fileUnits)
+    if debug: logging.info(colored('Import file list parsed successfully.', 'green'))
     return result
 
 '''
 draw dependency graph
 '''
-def parseDependency(inputDir, outputDir, graph):
+def parseDependency(inputDir, outputDir, graph, debug=False):
+    if debug: logging.info(colored('Drawing dependency graph...', 'green'))
     result = parseContractList(inputDir)
     dot = Digraph(comment="The Dependency Graph", node_attr={'shape': 'record'})
     ## add node from the contract list
@@ -140,12 +166,14 @@ def parseDependency(inputDir, outputDir, graph):
                 dot.edge(realPath, path)
     if graph:
         dot.render(os.path.join(outputDir, "DependencyGraph.gv"), format='png', view=True)
+    if debug: logging.info(colored('Dependency graph drawn successfully.', 'green'))
     return dot
 
 '''
 get leaf node of dependency graph
 '''
-def getLeafNode(inputDir):
+def getLeafNode(inputDir, debug=False):
+    if debug: logging.info(colored('Getting leaf node of dependency graph...', 'green'))
     result = parseContractList(inputDir)
     nodeList = dict()
     ## add node from the contract list
@@ -163,12 +191,14 @@ def getLeafNode(inputDir):
                     break
             if realPath in result:
                 nodeList[realPath] += 1
+    if debug: logging.info(colored('Leaf node of dependency graph obtained successfully.', 'green'))
     return nodeList                
 
 '''
 compile DApp
 '''
-def compileDapp(inputDir, outputDir):
+def compileLeafNodes(inputDir, outputDir, debug=False):
+    if debug: logging.info(colored('Compiling DApp...', 'green'))
     ## get leaf node (contract)
     nodeList = getLeafNode(inputDir)
     leafNodes = []
@@ -183,7 +213,7 @@ def compileDapp(inputDir, outputDir):
             continue
         version = parseVersion(leafNode)
         if version == "unknown version":
-            print("unable to identify solidity version of", contractName)
+            logging.error(f"Unable to identify solidity version of {contractName}")
             continue
         switchVersion(version)
         basePath = os.path.join(os.path.dirname(inputDir), "node_modules")
@@ -202,11 +232,64 @@ def compileDapp(inputDir, outputDir):
                     + " --allow-paths " \
                     + os.path.dirname(inputDir)
         os.system(compileCommand)
+    if debug: logging.info(colored('DApp compiled successfully.', 'green'))
+
+def compileDapp(inputDir, outputDir, debug=False):
+    if debug: logging.info(colored('Compiling DApp...', 'green'))
+    ## get all node (contract)
+    contractList = parseContractList(inputDir)
+    ## compile each contract
+    for contractPath, contractName in contractList.items():
+        print('hello')
+        targetPath = os.path.join(outputDir, contractName[:len(contractName) - 4] + ".json")
+        if os.path.exists(targetPath) and os.path.getsize(targetPath):
+            continue
+        version = parseVersion(contractPath)
+        if version == "unknown version":
+            logging.error("Unable to identify solidity version of", contractName)
+            continue
+        switchVersion(version)
+        basePath = os.path.join(os.path.dirname(inputDir), "node_modules")
+        if not os.path.exists(basePath):
+            os.mkdir(basePath)
+        _, _, importLibs = calculateImportLib(inputDir)
+        compileCommand = "solc --combined-json abi,bin,bin-runtime,srcmap,srcmap-runtime,ast "
+        for importLib in importLibs:
+            libs = importLib.split("/")
+            if libs[0] == ".":
+                continue
+            compileCommand = compileCommand + libs[0] + "=" + os.path.join(basePath, libs[0]) + " "
+        compileCommand = compileCommand \
+                    + contractPath + " > " \
+                    + targetPath \
+                    + " --allow-paths " \
+                    + os.path.dirname(inputDir)
+        
+        logging.info("Compiling this contract " + contractName + "... compileCommand: " + str(compileCommand))
+        os.system(compileCommand)
+    logging.info('DApp compiled successfully.')
+
+import subprocess
+
+def check_and_install_solc_version(version):
+    # Get the installed solc version
+    installed_version = subprocess.check_output(["solc", "--version"]).decode("utf-8")
+
+    # Check if the required version is installed
+    if version not in installed_version:
+        # If not, install the required version
+        logging.info(f"Version {version} not found. Installing...")
+        subprocess.call(["solc-select", "install", version])
+        subprocess.call(["solc-select", "use", version])
+        logging.info(f"Version {version} installed successfully.")
+    else:
+        logging.info(f"Version {version} is already installed.")
 
 '''
 compile contract
 '''
 def compileContract(inputDir, outputDir, targetContract):
+    logging.info('Compiling contract...')
     ## get leaf node (contract)
     nodeList = getLeafNode(inputDir)
     leafNode = ""
@@ -222,7 +305,7 @@ def compileContract(inputDir, outputDir, targetContract):
     targetPath = os.path.join(outputDir, contractName[:len(contractName) - 4] + ".json")
     version = parseVersion(leafNode)
     if version == "unknown version":
-        print("unable to identify solidity version of", contractName)
+        logging.error("Unable to identify solidity version of %s", contractName)
         return
     switchVersion(version)
     basePath = os.path.join(os.path.dirname(inputDir), "node_modules")
@@ -241,11 +324,13 @@ def compileContract(inputDir, outputDir, targetContract):
                 + " --allow-paths " \
                 + os.path.dirname(inputDir)
     os.system(compileCommand)
+    logging.info('Contract compiled successfully.')
 
 '''
 calculate how many import lib
 '''
 def calculateImportLib(inputDir):
+    logging.info('Calculating how many import lib...')
     ## get all node (contract)
     result = parseContractList(inputDir)
     modulePath = os.path.dirname(inputDir)
@@ -267,12 +352,14 @@ def calculateImportLib(inputDir):
                 lib.append(importFile)
         if flag:
             libNum += 1
+    logging.info('Number of import lib calculated successfully.')
     return libNum, len(result.keys()), list(set(lib))
 
 '''
 get contract string without ''pragma solidity''
 '''
 def getPackedContract(contractPath, nodeModulePath):
+    logging.info('Getting contract string without ''pragma solidity''...')
     f = open(contractPath, 'r')
     contractStringWithVersion = f.read()
     f.close()
@@ -354,3 +441,5 @@ def getPacked(inputDir, outputDir):
         packedLeafNode = version + "\n" + contract
         with open(targetPath, 'w') as f:
             f.write(packedLeafNode)
+
+
