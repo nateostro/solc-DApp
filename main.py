@@ -13,7 +13,7 @@ def compartmentalize_and_compile_contracts(inputDir, outputDir, contractName, gr
         # sys.exit(0)
 
     ## complie ${contractName}
-    compileDapp(inputDir, outputDir, debug)
+    return compileDapp(inputDir, outputDir, debug)
 
 
 if __name__ == "__main__":
