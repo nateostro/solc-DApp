@@ -2,7 +2,6 @@
 # -*- coding: UTF-8 -*-
 
 import sys
-sys.path.append("./utils")
 from utils.utils import *
 
     
