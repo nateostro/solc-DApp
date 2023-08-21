@@ -9,9 +9,9 @@ except ImportError:
     print("Error: Could not import parseDependency, compileContract, or parseArg from utils")
 
 
-if __name__ == "__main__":
-    inputDir, outputDir, contractName, graph, debug = parseArg(sys.argv[1:])
 
+    
+def compartmentalize_and_compile_contracts(inputDir, outputDir, contractName, graph, debug):
     ## print uml graph in outputDir
     if graph:
         parseDependency(inputDir, outputDir, graph, debug)
@@ -19,3 +19,8 @@ if __name__ == "__main__":
 
     ## complie ${contractName}
     compileDapp(inputDir, outputDir, debug)
+
+
+if __name__ == "__main__":
+    inputDir, outputDir, contractName, graph, debug = parseArg(sys.argv[1:])
+    compartmentalize_and_compile_contracts(inputDir, outputDir, contractName, graph, debug)
