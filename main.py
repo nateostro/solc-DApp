@@ -3,12 +3,7 @@
 
 import sys
 sys.path.append("./utils")
-try:
-    from utils import parseDependency, compileDapp, parseArg
-except ImportError:
-    print("Error: Could not import parseDependency, compileContract, or parseArg from utils")
-
-
+from utils.utils import *
 
     
 def compartmentalize_and_compile_contracts(inputDir, outputDir, contractName, graph, debug):
