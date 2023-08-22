@@ -2,7 +2,10 @@
 # -*- coding: UTF-8 -*-
 
 import sys
-from utils.utils import *
+try:
+    from soltool.utils.utils import parseDependency, compileDapp, parseArg
+except:
+    from utils.utils import parseDependency, compileDapp, parseArg
 
     
 def compartmentalize_and_compile_contracts(inputDir, outputDir, contractName, graph, debug):
